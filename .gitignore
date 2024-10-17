@@ -1,0 +1,76 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Virtual environments
+venv/
+env/
+
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# VS Code settings and extensions
+.vscode/
+*.code-workspace
+
+# Python packages
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+pip-wheel-metadata/
+*.egg-info/
+
+# PyInstaller files
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.cache/
+coverage.*
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pylint reports
+pylint-report/
+
+# Environment variables and secrets
+.env
+.env.*
+
+# Log files and temporary files
+*.log
+*.tmp
+
+# Data files and models
+*.pickle
+*.pkl
+data/
+model.p
+
+# State files
+state.json
+
+# Ignore unnecessary files created by OS and editors
+Thumbs.db

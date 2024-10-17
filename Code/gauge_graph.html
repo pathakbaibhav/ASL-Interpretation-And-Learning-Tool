@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Gauge Chart</title>
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    <script type="text/javascript">
+        google.charts.load('current', {'packages':['gauge']});
+        google.charts.setOnLoadCallback(drawChart);
+
+        function drawChart() {
+            var data = google.visualization.arrayToDataTable([
+                ['Label', 'Score'],
+                ['Score', 0]
+            ]);
+
+            var options = {
+                width: 800, height: 240,
+                redFrom: 0, redTo: 80,  // Red color for 0-80
+                greenFrom: 80, greenTo: 100,  // Green color for 80-100
+                minorTicks: 2,
+                backgroundColor: { fill:'transparent' },  // Making the gauge background transparent
+                greenColor: '#00ff00',  // Adjusting the gauge colors for better visibility
+                redColor: '#ff0000',
+                yellowColor: '#ffff00',
+                white: '#ffffff'  // Color for the texts and other elements
+            };
+
+            var chart = new google.visualization.Gauge(document.getElementById('chart_div'));
+
+            function updateData() {
+                fetch('https://prompt-major-trout.ngrok-free.app/data')
+                .then(response => response.json())
+                .then(json => {
+                    data.setValue(0, 1, json.value);
+                    chart.draw(data, options);
+                });
+            }
+
+            updateData();  // Initial data update
+            setInterval(updateData, 500);  // Update every 2 seconds
+        }
+    </script>
+</head>
+<body style="background-color: #0E1117; color: white;">
+    <div id="chart_div" style="width: 800px; height: 240px; margin: auto;"></div>
+</body>
+</html>

@@ -60,3 +60,31 @@ ASL_Interpretation_And_Learning_Tool/
 ├── FinalReport.pdf      # Project final report
 ├── requirements.txt     # Dependencies
 └── README.md            # Documentation (this file)
+
+## How to Run the Project
+
+### 1. Clone the repository:
+```bash
+git clone https://github.com/pathakbaibhav/ASL-Interpretation-And-Learning-Tool.git
+cd ASL_Interpretation_And_Learning_Tool
+```
+### 2. Set up a virtual environment:
+```bash
+python3 -m venv venv
+source venv/bin/activate  # For macOS/Linux
+```
+### 3. Install dependencies:
+```bash
+Copy code
+pip install -r requirements.txt
+```
+### 4. Run the application:
+```bash
+Copy code
+streamlit run Code/app.py
+```
+### 5. Run the server (optional):
+```bash
+Copy code
+python Code/server.py
+```

@@ -34,7 +34,7 @@ The **ASL Interpretation and Learning Tool** is an assistive software solution a
 ---
 
 ## Folder Structure
-
+```
 ASL_Interpretation_And_Learning_Tool/
 │
 ├── Code/                # Main project code
@@ -60,6 +60,7 @@ ASL_Interpretation_And_Learning_Tool/
 ├── FinalReport.pdf      # Project final report
 ├── requirements.txt     # Dependencies
 └── README.md            # Documentation (this file)
+```
 
 ## How to Run the Project
 

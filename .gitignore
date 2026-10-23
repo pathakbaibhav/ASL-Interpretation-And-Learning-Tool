@@ -70,6 +70,8 @@ data/
 model.p
 # The landmark dataset is small (no images) and needed for training and tests.
 !Code/data.pickle
+# Built by Code/build_site.py for GitHub Pages.
+/site/
 # Downloaded automatically on first run.
 Code/models/hand_landmarker.task
 *.part

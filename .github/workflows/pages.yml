@@ -1,0 +1,60 @@
+name: Deploy demo to GitHub Pages
+
+# Publishes the server-free web app (MediaPipe + the TensorFlow-trained
+# network running in the browser) every time main changes.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build static site
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # build_site.py only needs NumPy and Jinja2, not the full app.
+      - name: Install build dependencies
+        run: pip install numpy==2.4.6 jinja2
+
+      - name: Cache MediaPipe hand landmarker model
+        uses: actions/cache@v4
+        with:
+          path: Code/models/hand_landmarker.task
+          key: hand-landmarker-float16-v1
+
+      - name: Build
+        run: python Code/build_site.py --out site
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

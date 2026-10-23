@@ -51,27 +51,27 @@ def test_video_mode_requires_timestamps(frame):
 
 
 def test_model_download_is_atomic(tmp_path, monkeypatch):
-    import hand_detector
+    import model_files
 
     def fake_download(url, filename):
         Path(filename).write_bytes(b"model")
 
-    monkeypatch.setattr(hand_detector.urllib.request, "urlretrieve", fake_download)
+    monkeypatch.setattr(model_files.urllib.request, "urlretrieve", fake_download)
     target = tmp_path / "models" / "hand_landmarker.task"
-    assert hand_detector.ensure_landmarker_model(target) == target
+    assert model_files.ensure_landmarker_model(target) == target
     assert target.read_bytes() == b"model"
     assert [p.name for p in target.parent.iterdir()] == [target.name]  # no leftover temp files
 
 
 def test_failed_download_leaves_nothing_behind(tmp_path, monkeypatch):
-    import hand_detector
+    import model_files
 
     def broken_download(url, filename):
         Path(filename).write_bytes(b"partial")
         raise OSError("network down")
 
-    monkeypatch.setattr(hand_detector.urllib.request, "urlretrieve", broken_download)
+    monkeypatch.setattr(model_files.urllib.request, "urlretrieve", broken_download)
     target = tmp_path / "hand_landmarker.task"
     with pytest.raises(OSError):
-        hand_detector.ensure_landmarker_model(target)
+        model_files.ensure_landmarker_model(target)
     assert list(tmp_path.iterdir()) == []

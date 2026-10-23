@@ -1,11 +1,21 @@
 // ASL Interpreter frontend.
 //
-// Two engines:
+// Served by Flask (mode "api"), two engines are available:
 //  - "browser": MediaPipe runs in the page (WebAssembly/GPU) and only the 21
 //    hand landmarks are POSTed to /api/predict. Lowest latency, and video
 //    never leaves the device.
 //  - "server": JPEG frames are POSTed to /api/predict/frame and the server
 //    runs MediaPipe. Used when the browser can't load MediaPipe.
+//
+// Built as a static site for GitHub Pages (mode "static"), there is no
+// server: the TensorFlow-trained network runs in the page (classifier.js).
+
+import { MLPClassifier } from "./classifier.js";
+
+const CONFIG = window.ASL_CONFIG ?? {
+  mode: "api", landmarkerUrl: "/models/hand_landmarker.task", signsBase: "/signs/",
+};
+const STATIC = CONFIG.mode === "static";
 
 const TASKS_VERSION = "0.10.14";
 const TASKS_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${TASKS_VERSION}`;
@@ -48,6 +58,7 @@ function save(key, value) {
 
 const settings = load("asl.settings", { engine: "browser", backend: "ensemble", holdMs: 1500, minConf: 0.8 });
 const progress = load("asl.progress", { best: 0, successes: {} });
+if (STATIC) Object.assign(settings, { engine: "browser", backend: "mlp" });
 
 // ------------------------------------------------------------------ state --
 const state = {
@@ -55,6 +66,7 @@ const state = {
   running: false,
   inFlight: false,
   landmarker: null,
+  classifier: null,
   lastVideoTime: -1,
   text: "",
   hold: { label: null, start: 0 },
@@ -99,7 +111,7 @@ async function loadLandmarker() {
     const { FilesetResolver, HandLandmarker } = await import(`${TASKS_URL}/vision_bundle.mjs`);
     const fileset = await FilesetResolver.forVisionTasks(`${TASKS_URL}/wasm`);
     const options = (delegate) => ({
-      baseOptions: { modelAssetPath: "/models/hand_landmarker.task", delegate },
+      baseOptions: { modelAssetPath: CONFIG.landmarkerUrl, delegate },
       runningMode: "VIDEO",
       numHands: 1,
       minHandDetectionConfidence: 0.5,
@@ -113,6 +125,11 @@ async function loadLandmarker() {
     }
     await refreshStatus();
   } catch (err) {
+    if (STATIC) {
+      console.error("MediaPipe failed to load", err);
+      setStatus("Couldn't load MediaPipe in this browser. Try a recent Chrome, Edge, Firefox or Safari");
+      throw err;
+    }
     console.warn("Browser MediaPipe unavailable, using server frames", err);
     settings.engine = "server";
     applySettings();
@@ -133,11 +150,12 @@ async function startCamera() {
     els.overlay.width = els.video.videoWidth;
     els.overlay.height = els.video.videoHeight;
     els.stageEmpty.hidden = true;
+    if (STATIC && !state.classifier) state.classifier = await MLPClassifier.load(CONFIG.mlpUrl);
     if (settings.engine === "browser" && !state.landmarker) await loadLandmarker();
     state.running = true;
     requestAnimationFrame(loop);
   } catch (err) {
-    els.cameraError.textContent = `Couldn't open the camera: ${err.message || err.name}`;
+    els.cameraError.textContent = `Couldn't start: ${err.message || err.name}`;
     els.cameraError.hidden = false;
   }
 }
@@ -158,10 +176,18 @@ function loop() {
     const points = hand ? hand.map((p) => [p.x, p.y]) : null;
     drawHand(points);
     if (!points) return onPrediction(null);
-    if (!state.inFlight) sendLandmarks(points);
-  } else if (!state.inFlight) {
+    if (STATIC) classifyLocally(points);
+    else if (!state.inFlight) sendLandmarks(points);
+  } else if (!STATIC && !state.inFlight) {
     sendFrame();
   }
+}
+
+function classifyLocally(points) {
+  const started = performance.now();
+  const result = state.classifier.predict(points);
+  els.rtt.textContent = `${(performance.now() - started).toFixed(2)} ms`;
+  onPrediction(result);
 }
 
 async function postJson(url, body, headers = {}) {
@@ -317,7 +343,7 @@ function setTarget(letter) {
   state.target = letter;
   els.targetLetter.textContent = letter;
   els.targetLetter.classList.remove("success");
-  els.refImage.src = `/signs/${letter}.png`;
+  els.refImage.src = `${CONFIG.signsBase}${letter}.png`;
   els.refImage.alt = `Reference handshape for ${letter}`;
   renderGrid();
 }
@@ -394,6 +420,11 @@ for (const tab of document.querySelectorAll(".tab")) {
 function setStatus(text) { els.status.textContent = text; }
 
 async function refreshStatus() {
+  if (STATIC) {
+    const engine = state.landmarker ? "MediaPipe + TensorFlow model running in your browser" : "runs entirely in your browser";
+    setStatus(`${letters.length + 1} signs · ${engine}`);
+    return;
+  }
   try {
     const health = await (await fetch("/api/health")).json();
     const engine = settings.engine === "browser" && state.landmarker ? "browser MediaPipe" : "server MediaPipe";
@@ -401,6 +432,20 @@ async function refreshStatus() {
   } catch {
     setStatus("API unreachable");
   }
+}
+
+if (STATIC) {
+  // No server here: the engine and model are fixed.
+  $("engineField").hidden = true;
+  els.backend.innerHTML = '<option value="mlp">TensorFlow MLP (in browser)</option>';
+  els.backend.disabled = true;
+  els.rtt.title = "Classification time";
+  $("privacyNote").textContent =
+    "Everything runs in your browser. Your camera feed never leaves this device.";
+  // Fetch the model now so it's ready by the time the camera starts.
+  MLPClassifier.load(CONFIG.mlpUrl)
+    .then((classifier) => { state.classifier ??= classifier; })
+    .catch((err) => setStatus(`Couldn't load the model: ${err.message}`));
 }
 
 applySettings();

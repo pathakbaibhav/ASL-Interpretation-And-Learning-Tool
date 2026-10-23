@@ -6,12 +6,6 @@ A HandLandmarker instance must not be shared between threads, so the Flask
 API lends detectors out from a pool (see ``DetectorPool`` in ``api.py``).
 """
 
-import os
-import tempfile
-import threading
-import urllib.request
-from pathlib import Path
-
 import cv2
 import mediapipe as mp
 import numpy as np
@@ -22,12 +16,7 @@ from mediapipe.tasks.python.vision import (
     RunningMode,
 )
 
-MODELS_DIR = Path(__file__).resolve().parent / "models"
-LANDMARKER_PATH = MODELS_DIR / "hand_landmarker.task"
-LANDMARKER_URL = (
-    "https://storage.googleapis.com/mediapipe-models/hand_landmarker/"
-    "hand_landmarker/float16/latest/hand_landmarker.task"
-)
+from model_files import LANDMARKER_PATH, ensure_landmarker_model
 
 # Pairs of landmark indices joined when drawing a hand skeleton.
 HAND_CONNECTIONS = [
@@ -41,34 +30,6 @@ HAND_CONNECTIONS = [
 # Frames darker than this (mean brightness, 0-255) get a second detection
 # attempt after lighting correction if the first attempt finds no hand.
 DARK_THRESHOLD = 80
-
-_download_lock = threading.Lock()
-
-
-def ensure_landmarker_model(path=LANDMARKER_PATH):
-    """
-    Downloads MediaPipe's hand landmarker model the first time it's needed.
-
-    Several processes (e.g. gunicorn workers) may start at once, so each
-    downloads into its own temporary file and atomically moves it into
-    place; whichever finishes last wins, and readers never see a partial file.
-    """
-    path = Path(path)
-    with _download_lock:
-        if path.exists():
-            return path
-        path.parent.mkdir(parents=True, exist_ok=True)
-        print(f"Downloading hand landmarker model to {path} ...")
-        fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name, suffix=".part")
-        os.close(fd)
-        try:
-            urllib.request.urlretrieve(LANDMARKER_URL, tmp)
-            os.replace(tmp, path)
-        finally:
-            if os.path.exists(tmp):
-                os.remove(tmp)
-    return path
-
 
 def frame_brightness(bgr):
     """Returns the mean brightness (0-255) of a BGR frame."""

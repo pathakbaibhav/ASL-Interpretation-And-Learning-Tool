@@ -23,13 +23,14 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from flask import Flask, g, jsonify, render_template, request, send_from_directory
+from flask import Flask, g, jsonify, render_template, request, send_from_directory, url_for
 from werkzeug.exceptions import HTTPException
 
 from batcher import MicroBatcher
 from cache import LRUCache
 from features import normalized_features, quantize
-from hand_detector import HandDetector, ensure_landmarker_model
+from hand_detector import HandDetector
+from model_files import ensure_landmarker_model
 from metrics import RequestMetrics
 from predictor import Predictor
 
@@ -242,7 +243,14 @@ def create_app(predictor=None, cache_size=4096, max_concurrent_frames=8,
 
     @app.get("/")
     def index():
-        return render_template("index.html", labels=list(predictor.labels))
+        return render_template(
+            "index.html",
+            labels=list(predictor.labels),
+            asset=lambda name: url_for("static", filename=name),
+            signs_base="/signs/",
+            client_config={"mode": "api", "landmarkerUrl": "/models/hand_landmarker.task",
+                           "signsBase": "/signs/"},
+        )
 
     @app.get("/signs/<path:name>")
     def sign_image(name):

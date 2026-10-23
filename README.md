@@ -1,5 +1,7 @@
 # ASL Interpretation and Learning Tool
 
+[![CI](https://github.com/pathakbaibhav/ASL-Interpretation-And-Learning-Tool/actions/workflows/ci.yml/badge.svg)](https://github.com/pathakbaibhav/ASL-Interpretation-And-Learning-Tool/actions/workflows/ci.yml)
+
 Real-time American Sign Language fingerspelling recognition (A–Z plus *space*) with a Flask REST API, a browser frontend, and a practice mode for learning the alphabet.
 
 A webcam frame goes through **MediaPipe** hand tracking (21 landmarks), the landmarks are normalized, and an ensemble of a **scikit-learn Random Forest** and a **TensorFlow** neural network predicts the letter. Signs held steadily are assembled into words, and the browser can speak the result aloud.
@@ -49,7 +51,7 @@ All numbers come from the scripts in this repo and are reproducible (see [Measur
   - Concurrent predictions are coalesced into one vectorized model call by a micro-batcher. A lone request isn't delayed, because the batcher never waits for company.
   - MediaPipe detectors aren't thread-safe, so frames borrow one from a pre-warmed pool. When every detector stays busy for a second, the request gets HTTP 503 instead of queueing without limit.
 - **Response cache (`cache.py`).** A thread-safe LRU cache keyed on features rounded to a 0.005 grid. Rounding was verified not to change any test-set prediction. It answers exact or near-exact repeats in about 0.2 ms. On live webcam streams, frame-to-frame landmark jitter means it rarely hits, so the throughput gains above come from batching and parallelism, not caching.
-- **Observability.** `GET /api/metrics` reports per-endpoint request counts, errors, p50/p95/p99 latency, cache hit rate and average batch size. Every response carries a `Server-Timing` header, visible in browser devtools.
+- **Observability.** `GET /api/metrics` reports per-endpoint request counts, errors, p50/p95/p99 latency, cache hit rate and average batch size. Every response carries a `Server-Timing` header, visible in browser devtools. Under gunicorn, each worker process keeps its own metrics, so a single call shows one worker's view.
 
 ---
 

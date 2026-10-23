@@ -20,3 +20,4 @@ app = create_app(
     warm_detectors=True,
     batching=os.environ.get("ASL_BATCHING", "1") == "1",
 )
+app.config["SERVER_THREADS"] = int(os.environ.get("ASL_THREADS", 4))

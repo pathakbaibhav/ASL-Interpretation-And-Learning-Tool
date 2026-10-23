@@ -68,9 +68,11 @@ pylint-report/
 *.pkl
 data/
 model.p
-
-# State files
-state.json
+# The landmark dataset is small (no images) and needed for training and tests.
+!Code/data.pickle
+# Downloaded automatically on first run.
+Code/models/hand_landmarker.task
+*.part
 
 # Ignore unnecessary files created by OS and editors
 Thumbs.db

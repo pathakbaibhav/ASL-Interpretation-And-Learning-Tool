@@ -1,0 +1,57 @@
+{
+  "source": "/Users/baibhavpathak/Documents/Development/ASL_Interpretation_And_earning_Tool/Code/tests/fixtures",
+  "images": 9,
+  "levels": [
+    {
+      "brightness_factor": 1.0,
+      "mean_pixel": 161.7,
+      "detected_plain": 9,
+      "detected_with_fallback": 9,
+      "images": 9
+    },
+    {
+      "brightness_factor": 0.35,
+      "mean_pixel": 56.1,
+      "detected_plain": 9,
+      "detected_with_fallback": 9,
+      "images": 9
+    },
+    {
+      "brightness_factor": 0.25,
+      "mean_pixel": 40.1,
+      "detected_plain": 6,
+      "detected_with_fallback": 7,
+      "images": 9
+    },
+    {
+      "brightness_factor": 0.18,
+      "mean_pixel": 28.6,
+      "detected_plain": 6,
+      "detected_with_fallback": 6,
+      "images": 9
+    },
+    {
+      "brightness_factor": 0.12,
+      "mean_pixel": 18.9,
+      "detected_plain": 3,
+      "detected_with_fallback": 6,
+      "images": 9
+    },
+    {
+      "brightness_factor": 0.08,
+      "mean_pixel": 12.5,
+      "detected_plain": 0,
+      "detected_with_fallback": 6,
+      "images": 9
+    },
+    {
+      "brightness_factor": 0.05,
+      "mean_pixel": 7.6,
+      "detected_plain": 0,
+      "detected_with_fallback": 4,
+      "images": 9
+    }
+  ],
+  "low_light_detection_rate_plain": 0.3333,
+  "low_light_detection_rate_with_fallback": 0.6444
+}

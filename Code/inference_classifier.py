@@ -1,101 +1,68 @@
-import pickle
-import cv2
-import mediapipe as mp
-import numpy as np
+"""
+Standalone OpenCV demo: shows the webcam with the detected hand, its
+bounding box and the predicted letter. Press Q or Esc to quit.
 
-# Load the pre-trained model from the pickle file.
-model_dict = pickle.load(open('./model.p', 'rb'))
-model = model_dict['model']
+Usage: python inference_classifier.py [--backend ensemble|rf|mlp]
+"""
+
+import argparse
+import time
+
+import cv2
+
+from features import normalized_features
+from hand_detector import HandDetector, draw_hand
+from predictor import Predictor
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--backend", default="ensemble", choices=["rf", "mlp", "ensemble"])
+parser.add_argument("--camera", default=0, type=int)
+args = parser.parse_args()
+
+predictor = Predictor(backend=args.backend)
+detector = HandDetector(video=True)
 
 # Initialize the webcam.
-cap = cv2.VideoCapture(0)
-
-# Retrieve the properties of the video stream.
-fps = int(cap.get(cv2.CAP_PROP_FPS))
+cap = cv2.VideoCapture(args.camera)
 width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-
 print(f"Video Stream Dimensions: {width}x{height}")
 
-# Initialize MediaPipe components for hand tracking.
-mp_hands = mp.solutions.hands
-mp_drawing = mp.solutions.drawing_utils
-mp_drawing_styles = mp.solutions.drawing_styles
-
-# Configure the hand detection model.
-hands = mp_hands.Hands(
-    static_image_mode=True, 
-    min_detection_confidence=0.3, 
-    max_num_hands=1
-)
-
-# Dictionary to map predictions to characters.
-labels_dict = {0: '0', 1: '1', 2: '2', 3: '3', 4: '4'}
-
 while True:
-    data_aux = []  # Auxiliary list for storing landmarks.
-    x_ = []  # List to store x-coordinates.
-    y_ = []  # List to store y-coordinates.
-
-    # Capture a frame from the webcam.
     ret, frame = cap.read()
     if not ret:
         print("Error: Unable to capture frame.")
         break
 
-    # Get the frame dimensions.
     H, W, _ = frame.shape
+    start = time.perf_counter()
+    detection = detector.detect(frame, timestamp_ms=time.monotonic() * 1000)
 
-    # Convert the frame to RGB for hand detection.
-    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    if detection is not None:
+        result = predictor.predict(normalized_features(detection.points))
+        elapsed_ms = (time.perf_counter() - start) * 1000
 
-    # Process the frame to detect hand landmarks.
-    results = hands.process(frame_rgb)
+        draw_hand(frame, detection.points)
 
-    if results.multi_hand_landmarks:
-        # Draw hand landmarks on the frame.
-        for hand_landmarks in results.multi_hand_landmarks:
-            mp_drawing.draw_landmarks(
-                frame, hand_landmarks, mp_hands.HAND_CONNECTIONS,
-                mp_drawing_styles.get_default_hand_landmarks_style(),
-                mp_drawing_styles.get_default_hand_connections_style()
-            )
+        # Bounding box around the hand, padded by 10 pixels on each side.
+        xs, ys = detection.points[:, 0], detection.points[:, 1]
+        x1, y1 = int(xs.min() * W) - 10, int(ys.min() * H) - 10
+        x2, y2 = int(xs.max() * W) + 10, int(ys.max() * H) + 10
 
-        # Extract and normalize hand landmarks.
-        for hand_landmarks in results.multi_hand_landmarks:
-            for i in range(len(hand_landmarks.landmark)):
-                x = hand_landmarks.landmark[i].x
-                y = hand_landmarks.landmark[i].y
-                x_.append(x)
-                y_.append(y)
+        confident = result["confidence"] >= 0.8
+        colour = (0, 200, 0) if confident else (0, 0, 220)
+        text = f"{result['label']} {result['confidence'] * 100:.0f}%"
+        cv2.rectangle(frame, (x1, y1), (x2, y2), colour, 3)
+        cv2.putText(frame, text, (x1, max(30, y1 - 10)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1.2, colour, 3, cv2.LINE_AA)
+        cv2.putText(frame, f"{elapsed_ms:.1f} ms", (10, H - 15),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
 
-            for i in range(len(hand_landmarks.landmark)):
-                x = hand_landmarks.landmark[i].x
-                y = hand_landmarks.landmark[i].y
-                data_aux.append(x - min(x_))
-                data_aux.append(y - min(y_))
-
-        # Calculate the bounding box around the hand.
-        x1 = int(min(x_) * W) - 10
-        y1 = int(min(y_) * H) - 10
-        x2 = int(max(x_) * W) - 10
-        y2 = int(max(y_) * H) - 10
-
-        # Make a prediction using the pre-trained model.
-        prediction = model.predict([np.asarray(data_aux)])
-        predicted_character = labels_dict[int(prediction[0])]
-
-        # Display the predicted character on the frame.
-        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 0), 4)
-        cv2.putText(
-            frame, predicted_character, (x1, y1 - 10),
-            cv2.FONT_HERSHEY_SIMPLEX, 1.3, (0, 0, 0), 3, cv2.LINE_AA
-        )
-
-    # Display the frame in a window.
-    cv2.imshow('frame', frame)
-    cv2.waitKey(1)
+    cv2.imshow("frame", frame)
+    if cv2.waitKey(1) & 0xFF in (ord("q"), 27):
+        break
 
 # Release the webcam and close all OpenCV windows.
 cap.release()
 cv2.destroyAllWindows()
+detector.close()

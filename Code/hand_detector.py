@@ -1,11 +1,13 @@
 """
-Hand landmark detection with MediaPipe's HandLandmarker (Tasks API), plus
-adaptive lighting correction for dark or washed-out frames.
+Hand landmark detection with MediaPipe's HandLandmarker (Tasks API), plus a
+low-light fallback that retries dark frames after gamma correction.
 
 A HandLandmarker instance must not be shared between threads, so the Flask
-API keeps one detector per worker thread (see ``api.py``).
+API lends detectors out from a pool (see ``DetectorPool`` in ``api.py``).
 """
 
+import os
+import tempfile
 import threading
 import urllib.request
 from pathlib import Path
@@ -44,15 +46,27 @@ _download_lock = threading.Lock()
 
 
 def ensure_landmarker_model(path=LANDMARKER_PATH):
-    """Downloads MediaPipe's hand landmarker model the first time it's needed."""
+    """
+    Downloads MediaPipe's hand landmarker model the first time it's needed.
+
+    Several processes (e.g. gunicorn workers) may start at once, so each
+    downloads into its own temporary file and atomically moves it into
+    place; whichever finishes last wins, and readers never see a partial file.
+    """
     path = Path(path)
     with _download_lock:
-        if not path.exists():
-            path.parent.mkdir(parents=True, exist_ok=True)
-            print(f"Downloading hand landmarker model to {path} ...")
-            tmp = path.with_suffix(".part")
+        if path.exists():
+            return path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        print(f"Downloading hand landmarker model to {path} ...")
+        fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name, suffix=".part")
+        os.close(fd)
+        try:
             urllib.request.urlretrieve(LANDMARKER_URL, tmp)
-            tmp.rename(path)
+            os.replace(tmp, path)
+        finally:
+            if os.path.exists(tmp):
+                os.remove(tmp)
     return path
 
 

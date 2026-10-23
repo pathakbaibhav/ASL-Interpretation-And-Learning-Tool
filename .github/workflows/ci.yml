@@ -27,9 +27,9 @@ jobs:
           cache: pip
           cache-dependency-path: requirements.txt
 
-      # opencv-python needs these shared libraries on a bare Ubuntu runner.
+      # OpenCV needs libGL/glib, and MediaPipe loads EGL/GLES even on CPU.
       - name: Install system libraries
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1 libglib2.0-0
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1 libglib2.0-0 libegl1 libgles2
 
       # The tests don't need TensorFlow (the MLP is served with NumPy), so
       # skip requirements-train.txt and keep the job fast.
@@ -41,6 +41,10 @@ jobs:
         with:
           path: Code/models/hand_landmarker.task
           key: hand-landmarker-float16-v1
+
+      - name: Download MediaPipe hand landmarker model
+        working-directory: Code
+        run: python -c "from hand_detector import ensure_landmarker_model; ensure_landmarker_model()"
 
       - name: Run tests
         working-directory: Code
@@ -60,7 +64,7 @@ jobs:
           cache-dependency-path: requirements.txt
 
       - name: Install system libraries
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1 libglib2.0-0
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1 libglib2.0-0 libegl1 libgles2
 
       - name: Install dependencies
         run: pip install -r requirements.txt
@@ -70,6 +74,10 @@ jobs:
         with:
           path: Code/models/hand_landmarker.task
           key: hand-landmarker-float16-v1
+
+      - name: Download MediaPipe hand landmarker model
+        working-directory: Code
+        run: python -c "from hand_detector import ensure_landmarker_model; ensure_landmarker_model()"
 
       - name: Start the API with gunicorn
         working-directory: Code

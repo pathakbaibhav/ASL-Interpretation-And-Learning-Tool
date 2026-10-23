@@ -159,3 +159,16 @@ def test_pages_and_assets(client):
     assert client.get("/signs/A.png").mimetype == "image/png"
     assert client.get("/static/js/app.js").status_code == 200
     assert client.get("/nope").get_json() == {"error": "Not found"}
+
+
+def test_unexpected_errors_return_json(predictor, victory_jpg):
+    class BrokenDetector:
+        def detect(self, frame):
+            raise RuntimeError("boom")
+
+    app = create_app(predictor=predictor, cache_size=0, detector_factory=BrokenDetector)
+    client = app.test_client()
+    response = client.post("/api/predict/frame", data=victory_jpg, content_type="image/jpeg")
+    assert response.status_code == 500
+    assert response.get_json() == {"error": "Internal server error"}
+    assert client.get("/api/metrics").get_json()["endpoints"]["predict_frame"]["errors"] == 1

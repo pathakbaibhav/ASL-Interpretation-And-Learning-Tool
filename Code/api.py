@@ -24,6 +24,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 from flask import Flask, g, jsonify, render_template, request, send_from_directory
+from werkzeug.exceptions import HTTPException
 
 from batcher import MicroBatcher
 from cache import LRUCache
@@ -142,6 +143,15 @@ def create_app(predictor=None, cache_size=4096, max_concurrent_frames=8,
                     error = True
                     response = jsonify({"error": e.message})
                     response.status_code = e.status
+                except HTTPException:
+                    metrics.record(endpoint, 0.0, error=True)
+                    raise  # e.g. 413, rendered by the error handlers below
+                except Exception:
+                    # Clients always get JSON back, and the failure is counted.
+                    app.logger.exception("Unhandled error on %s", request.path)
+                    error = True
+                    response = jsonify({"error": "Internal server error"})
+                    response.status_code = 500
                 elapsed = (time.perf_counter() - g.start) * 1000
                 metrics.record(endpoint, elapsed, error=error)
                 response.headers["Server-Timing"] = f"app;dur={elapsed:.2f}"

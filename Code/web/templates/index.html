@@ -6,7 +6,7 @@
   <title>ASL Interpreter</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/style.css') }}">
 </head>
 <body>
   <header class="topbar">
@@ -29,7 +29,7 @@
         <video id="video" playsinline muted></video>
         <canvas id="overlay"></canvas>
         <div class="stage-empty" id="stageEmpty">
-          <p>Your camera feed stays on this device in browser mode; only 21 hand points are sent to the server.</p>
+          <p id="privacyNote">Your camera feed stays on this device in browser mode; only 21 hand points are sent to the server.</p>
           <button class="btn primary" id="startBtn">Start camera</button>
           <p class="error" id="cameraError" hidden></p>
         </div>
@@ -41,7 +41,7 @@
       </div>
 
       <div class="controls">
-        <label class="field">
+        <label class="field" id="engineField">
           <span>Engine</span>
           <select id="engineSelect">
             <option value="browser">Browser landmarks (fastest)</option>
@@ -114,7 +114,7 @@
             <span class="eyebrow">Sign this letter</span>
             <div class="target-letter" id="targetLetter">A</div>
           </div>
-          <div class="ref-card"><img id="refImage" src="/signs/A.png" alt="Reference handshape for A"></div>
+          <div class="ref-card"><img id="refImage" src="{{ signs_base }}A.png" alt="Reference handshape for A"></div>
         </div>
         <div class="hold">
           <div class="hold-bar"><div class="hold-fill" id="practiceFill"></div></div>
@@ -140,9 +140,14 @@
 
   <footer class="foot">
     <span id="status">Model: loading…</span>
+    {% if client_config.mode == "api" %}
     <a href="/api/metrics" target="_blank" rel="noopener">API metrics</a>
+    {% else %}
+    <a href="https://github.com/pathakbaibhav/ASL-Interpretation-And-Learning-Tool" target="_blank" rel="noopener">Source on GitHub</a>
+    {% endif %}
   </footer>
 
-  <script type="module" src="{{ url_for('static', filename='js/app.js') }}"></script>
+  <script>window.ASL_CONFIG = {{ client_config | tojson }};</script>
+  <script type="module" src="{{ asset('js/app.js') }}"></script>
 </body>
 </html>

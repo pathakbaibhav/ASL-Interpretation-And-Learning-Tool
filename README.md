@@ -1,6 +1,9 @@
 # ASL Interpretation and Learning Tool
 
 [![CI](https://github.com/pathakbaibhav/ASL-Interpretation-And-Learning-Tool/actions/workflows/ci.yml/badge.svg)](https://github.com/pathakbaibhav/ASL-Interpretation-And-Learning-Tool/actions/workflows/ci.yml)
+[![Live demo](https://github.com/pathakbaibhav/ASL-Interpretation-And-Learning-Tool/actions/workflows/pages.yml/badge.svg)](https://pathakbaibhav.github.io/ASL-Interpretation-And-Learning-Tool/)
+
+**[▶ Try the live demo](https://pathakbaibhav.github.io/ASL-Interpretation-And-Learning-Tool/)**: it runs entirely in your browser, so allow camera access and fingerspell.
 
 Real-time American Sign Language fingerspelling recognition (A–Z plus *space*) with a Flask REST API, a browser frontend, and a practice mode for learning the alphabet.
 
@@ -117,6 +120,25 @@ From `models/benchmark.json`, produced by `benchmark.py` on 10 CPU cores. Each r
 
 ---
 
+## Live demo
+
+The demo at **https://pathakbaibhav.github.io/ASL-Interpretation-And-Learning-Tool/** is a static build of the web app hosted on GitHub Pages:
+
+- MediaPipe hand tracking and the TensorFlow-trained network both run in the browser, so there is no server and the camera feed never leaves the device.
+- `build_site.py` exports the network's weights to JSON, and [`classifier.js`](Code/web/static/js/classifier.js) runs them in JavaScript. A test checks that it matches the Python model to within 0.0001.
+- The demo has Translate and Practice modes, but not the Flask-only features: the Random Forest/ensemble, server-side frame processing and API metrics. Run `python api.py` locally for those.
+- It redeploys automatically on every push to `main` (`.github/workflows/pages.yml`).
+
+To build and preview it locally:
+
+```bash
+cd Code
+python build_site.py
+python -m http.server -d ../site 8080
+```
+
+---
+
 ## Getting started
 
 Requires Python 3.11 (MediaPipe and TensorFlow wheels lag behind the newest Python releases).
@@ -229,13 +251,15 @@ Code/
 ├── train_classifier.py    training + evaluation → models/metrics.json
 ├── evaluate_lighting.py   low-light detection study → models/lighting.json
 ├── benchmark.py           load test → models/benchmark.json
+├── build_site.py          static GitHub Pages build (in-browser model)
+├── model_files.py         model paths + safe MediaPipe model download
 ├── collect_imgs.py        capture training images from the webcam
 ├── create_dataset.py      images → landmarks (data.pickle)
 ├── inference_classifier.py  OpenCV desktop demo
 ├── data.pickle            landmark dataset (2,688 samples, 27 classes)
 ├── models/                trained models and measured results
 ├── signImages/            reference handshapes A–Z
-├── web/                   HTML/CSS/JS frontend
+├── web/                   HTML/CSS/JS frontend (classifier.js = in-browser model)
 └── tests/                 pytest suite
 ```
 

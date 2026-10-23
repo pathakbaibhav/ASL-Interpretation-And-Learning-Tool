@@ -44,11 +44,15 @@ jobs:
 
       - name: Download MediaPipe hand landmarker model
         working-directory: Code
-        run: python -c "from hand_detector import ensure_landmarker_model; ensure_landmarker_model()"
+        run: python -c "from model_files import ensure_landmarker_model; ensure_landmarker_model()"
 
       - name: Run tests
         working-directory: Code
         run: python -m pytest tests -v
+
+      - name: Build the GitHub Pages site
+        working-directory: Code
+        run: python build_site.py --out ../site
 
   api-smoke:
     name: API smoke test (gunicorn)
@@ -77,7 +81,7 @@ jobs:
 
       - name: Download MediaPipe hand landmarker model
         working-directory: Code
-        run: python -c "from hand_detector import ensure_landmarker_model; ensure_landmarker_model()"
+        run: python -c "from model_files import ensure_landmarker_model; ensure_landmarker_model()"
 
       - name: Start the API with gunicorn
         working-directory: Code

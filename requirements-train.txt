@@ -1,0 +1,3 @@
+# Training the models (train_classifier.py) additionally needs TensorFlow.
+-r requirements.txt
+tensorflow==2.21.0

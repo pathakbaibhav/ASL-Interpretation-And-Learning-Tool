@@ -1,0 +1,4 @@
+# Tests and the load benchmark.
+-r requirements-train.txt
+pytest==9.1.1
+requests==2.34.2

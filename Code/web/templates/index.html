@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ASL Interpreter</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">🤟</span>
+      <div>
+        <h1>ASL Interpreter</h1>
+        <p class="subtitle">Real-time fingerspelling recognition and practice</p>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab active" role="tab" data-mode="translate" aria-selected="true">Translate</button>
+      <button class="tab" role="tab" data-mode="practice" aria-selected="false">Practice</button>
+    </nav>
+  </header>
+
+  <main class="layout">
+    <section class="stage-col">
+      <div class="stage" id="stage">
+        <video id="video" playsinline muted></video>
+        <canvas id="overlay"></canvas>
+        <div class="stage-empty" id="stageEmpty">
+          <p>Your camera feed stays on this device in browser mode; only 21 hand points are sent to the server.</p>
+          <button class="btn primary" id="startBtn">Start camera</button>
+          <p class="error" id="cameraError" hidden></p>
+        </div>
+        <div class="stage-badges">
+          <span class="badge" id="fpsBadge">— fps</span>
+          <span class="badge" id="rttBadge" title="Round trip / server time">— ms</span>
+          <span class="badge warn" id="lightBadge" hidden>Low light corrected</span>
+        </div>
+      </div>
+
+      <div class="controls">
+        <label class="field">
+          <span>Engine</span>
+          <select id="engineSelect">
+            <option value="browser">Browser landmarks (fastest)</option>
+            <option value="server">Server frames</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Model</span>
+          <select id="backendSelect">
+            <option value="ensemble">Ensemble (RF + TF)</option>
+            <option value="rf">Random Forest</option>
+            <option value="mlp">TensorFlow MLP</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Hold time <output id="holdOut">1.5s</output></span>
+          <input type="range" id="holdRange" min="0.5" max="3" step="0.1" value="1.5">
+        </label>
+        <label class="field">
+          <span>Min confidence <output id="confOut">80%</output></span>
+          <input type="range" id="confRange" min="0.5" max="0.99" step="0.01" value="0.8">
+        </label>
+      </div>
+    </section>
+
+    <section class="panel-col">
+      <!-- Translate mode -->
+      <div class="panel" data-panel="translate">
+        <div class="readout">
+          <div class="letter-box">
+            <span class="eyebrow">Detected</span>
+            <div class="letter" id="letter">–</div>
+          </div>
+          <div class="gauge-box">
+            <svg viewBox="0 0 120 70" class="gauge" aria-hidden="true">
+              <path d="M10 62 A50 50 0 0 1 110 62" class="gauge-track"/>
+              <path d="M10 62 A50 50 0 0 1 110 62" class="gauge-fill" id="gaugeFill"/>
+            </svg>
+            <div class="gauge-value"><span id="confValue">0</span>%</div>
+            <span class="eyebrow">Confidence</span>
+          </div>
+        </div>
+
+        <div class="hold">
+          <div class="hold-bar"><div class="hold-fill" id="holdFill"></div></div>
+          <span class="hint" id="holdHint">Hold a sign steady to add it</span>
+        </div>
+
+        <ul class="alts" id="alts"></ul>
+
+        <div class="sentence-box">
+          <div class="sentence-head">
+            <span class="eyebrow">Translation</span>
+            <div class="sentence-actions">
+              <button class="btn ghost" id="spaceBtn" title="Add a space">Space</button>
+              <button class="btn ghost" id="backBtn" title="Delete last character">⌫</button>
+              <button class="btn ghost" id="clearBtn">Clear</button>
+              <button class="btn ghost" id="copyBtn">Copy</button>
+              <button class="btn primary" id="speakBtn">Speak</button>
+            </div>
+          </div>
+          <p class="sentence" id="sentence" aria-live="polite"><span class="caret"></span></p>
+        </div>
+      </div>
+
+      <!-- Practice mode -->
+      <div class="panel" data-panel="practice" hidden>
+        <div class="practice-head">
+          <div>
+            <span class="eyebrow">Sign this letter</span>
+            <div class="target-letter" id="targetLetter">A</div>
+          </div>
+          <div class="ref-card"><img id="refImage" src="/signs/A.png" alt="Reference handshape for A"></div>
+        </div>
+        <div class="hold">
+          <div class="hold-bar"><div class="hold-fill" id="practiceFill"></div></div>
+          <span class="hint" id="practiceHint">Show the handshape to the camera</span>
+        </div>
+        <div class="stats">
+          <div><span class="stat" id="streak">0</span><span class="eyebrow">Streak</span></div>
+          <div><span class="stat" id="best">0</span><span class="eyebrow">Best</span></div>
+          <div><span class="stat" id="mastered">0</span><span class="eyebrow">Mastered</span></div>
+        </div>
+        <div class="practice-actions">
+          <button class="btn ghost" id="skipBtn">Skip</button>
+          <label class="check"><input type="checkbox" id="randomToggle" checked> Random order</label>
+        </div>
+        <div class="letter-grid" id="letterGrid">
+          {% for label in labels if label != "space" %}
+          <button class="grid-letter" data-letter="{{ label }}">{{ label }}</button>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span id="status">Model: loading…</span>
+    <a href="/api/metrics" target="_blank" rel="noopener">API metrics</a>
+  </footer>
+
+  <script type="module" src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

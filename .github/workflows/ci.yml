@@ -1,0 +1,129 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Tests (Python 3.11)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      # OpenCV needs libGL/glib, and MediaPipe loads EGL/GLES even on CPU.
+      - name: Install system libraries
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1 libglib2.0-0 libegl1 libgles2
+
+      # The tests don't need TensorFlow (the MLP is served with NumPy), so
+      # skip requirements-train.txt and keep the job fast.
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest
+
+      - name: Cache MediaPipe hand landmarker model
+        uses: actions/cache@v4
+        with:
+          path: Code/models/hand_landmarker.task
+          key: hand-landmarker-float16-v1
+
+      - name: Download MediaPipe hand landmarker model
+        working-directory: Code
+        run: python -c "from hand_detector import ensure_landmarker_model; ensure_landmarker_model()"
+
+      - name: Run tests
+        working-directory: Code
+        run: python -m pytest tests -v
+
+  api-smoke:
+    name: API smoke test (gunicorn)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install system libraries
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1 libglib2.0-0 libegl1 libgles2
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Cache MediaPipe hand landmarker model
+        uses: actions/cache@v4
+        with:
+          path: Code/models/hand_landmarker.task
+          key: hand-landmarker-float16-v1
+
+      - name: Download MediaPipe hand landmarker model
+        working-directory: Code
+        run: python -c "from hand_detector import ensure_landmarker_model; ensure_landmarker_model()"
+
+      - name: Start the API with gunicorn
+        working-directory: Code
+        run: |
+          ASL_WORKERS=2 gunicorn -c gunicorn.conf.py --bind 127.0.0.1:8000 wsgi:app > ../server.log 2>&1 &
+          for i in $(seq 1 60); do
+            curl -sf http://127.0.0.1:8000/api/health && exit 0
+            sleep 2
+          done
+          cat ../server.log
+          exit 1
+
+      - name: Exercise the endpoints
+        run: |
+          set -euo pipefail
+          check() { echo "$1" | python -c "import json,sys; d=json.load(sys.stdin); assert $2, d; print('ok:', $3)"; }
+
+          curl -sf http://127.0.0.1:8000/ | grep -q "ASL Interpreter" && echo "ok: web app served"
+
+          FRAME=$(curl -sf -X POST http://127.0.0.1:8000/api/predict/frame \
+            -H 'Content-Type: image/jpeg' --data-binary @Code/tests/fixtures/victory.jpg)
+          check "$FRAME" "d['hand_detected'] and d['label'] == 'V'" "d['label'], d['latency_ms']"
+
+          LANDMARKS=$(echo "$FRAME" | python -c "import json,sys; print(json.dumps({'landmarks': json.load(sys.stdin)['landmarks']}))")
+          PRED=$(curl -sf -X POST http://127.0.0.1:8000/api/predict -H 'Content-Type: application/json' -d "$LANDMARKS")
+          check "$PRED" "d['label'] == 'V'" "d['label'], d['confidence']"
+
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8000/api/predict \
+            -H 'Content-Type: application/json' -d '{"landmarks": [[0, 0]]}')
+          test "$STATUS" = "400" && echo "ok: bad input rejected"
+
+          # Each gunicorn worker keeps its own metrics, so only check the shape.
+          check "$(curl -sf http://127.0.0.1:8000/api/metrics)" "'endpoints' in d and 'cache' in d" "'metrics served'"
+
+      - name: Server log
+        if: always()
+        run: cat server.log || true
+
+  frontend:
+    name: Frontend syntax check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Check app.js parses
+        run: node --check Code/web/static/js/app.js

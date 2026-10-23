@@ -1,20 +1,19 @@
+"""
+Turns the images collected by collect_imgs.py (./data/<class>/*.jpg) into
+hand landmark features and saves them to data.pickle for train_classifier.py.
+
+Features are stored in the v1 layout (landmarks shifted to start at (0, 0))
+so the file stays compatible with the original dataset; training converts
+them to v2.
+"""
+
 import os
 import pickle
-import mediapipe as mp
+
 import cv2
-import matplotlib.pyplot as plt
 
-# Initialize MediaPipe components for hand tracking.
-mp_hands = mp.solutions.hands
-mp_drawing = mp.solutions.drawing_utils
-mp_drawing_styles = mp.solutions.drawing_styles
-
-# Configure the hand detection model.
-hands = mp_hands.Hands(
-    static_image_mode=True, 
-    min_detection_confidence=0.3, 
-    max_num_hands=1
-)
+from features import legacy_features
+from hand_detector import HandDetector
 
 # Directory containing the collected image data.
 DATA_DIR = './data'
@@ -22,42 +21,30 @@ DATA_DIR = './data'
 # Lists to store data and labels.
 data = []
 labels = []
+skipped = 0
 
-# Iterate over all class directories.
-for dir_ in os.listdir(DATA_DIR):
-    # Iterate over all images in the class directory.
-    for img_path in os.listdir(os.path.join(DATA_DIR, dir_)):
-        data_aux = []  # Auxiliary list for storing landmarks.
-        x_ = []  # List to store x-coordinates.
-        y_ = []  # List to store y-coordinates.
+with HandDetector(lighting="auto") as detector:
+    # Iterate over all class directories.
+    for dir_ in sorted(os.listdir(DATA_DIR)):
+        class_dir = os.path.join(DATA_DIR, dir_)
+        if not os.path.isdir(class_dir):
+            continue
 
-        # Read and convert the image to RGB format.
-        img = cv2.imread(os.path.join(DATA_DIR, dir_, img_path))
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        # Iterate over all images in the class directory.
+        for img_path in sorted(os.listdir(class_dir)):
+            img = cv2.imread(os.path.join(class_dir, img_path))
+            if img is None:
+                continue
 
-        # Process the image to detect hand landmarks.
-        results = hands.process(img_rgb)
+            detection = detector.detect(img)
+            if detection is None:
+                skipped += 1
+                continue
 
-        if results.multi_hand_landmarks:
-            # Extract hand landmarks.
-            for hand_landmarks in results.multi_hand_landmarks:
-                # Collect all x and y coordinates.
-                for i in range(len(hand_landmarks.landmark)):
-                    x = hand_landmarks.landmark[i].x
-                    y = hand_landmarks.landmark[i].y
-                    x_.append(x)
-                    y_.append(y)
-
-                # Normalize coordinates by subtracting the minimum x and y values.
-                for i in range(len(hand_landmarks.landmark)):
-                    x = hand_landmarks.landmark[i].x
-                    y = hand_landmarks.landmark[i].y
-                    data_aux.append(x - min(x_))
-                    data_aux.append(y - min(y_))
-
-            # Append the normalized data and corresponding label.
-            data.append(data_aux)
+            data.append(legacy_features(detection.points).tolist())
             labels.append(dir_)
+
+print(f"Extracted {len(data)} samples; {skipped} images had no detectable hand")
 
 # Save the collected data and labels to a pickle file.
 with open('data.pickle', 'wb') as f:
